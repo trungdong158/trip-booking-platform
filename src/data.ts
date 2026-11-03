@@ -1,0 +1,233 @@
+import type { Destination, Itinerary, User } from './types'
+
+export const seedDestinations: Destination[] = [
+  {
+    id: 'ta-xua',
+    name: 'Chạm vào mây',
+    region: 'Núi rừng',
+    province: 'Tà Xùa, Sơn La',
+    mood: ['Bình yên', 'Phiêu lưu', 'Thiên nhiên'],
+    type: 'tour',
+    price: 2490000,
+    rating: 4.9,
+    duration: '3 ngày 2 đêm',
+    season: 'Tháng 10 — 3',
+    image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Dãy núi phủ sương trong ánh bình minh',
+    label: 'Được yêu thích',
+    host: 'Hà, người giữ mây Tà Xùa',
+    hostStory: 'Hà lớn lên giữa những triền núi Sơn La. Chị biết con đường nhỏ nào dẫn tới biển mây yên tĩnh nhất, nơi người ta có thể ngồi hàng giờ mà không cần nói gì.',
+    description: 'Theo chân người bản địa thức dậy trước bình minh, băng qua sống lưng khủng long và đón biển mây đầu ngày.',
+    highlights: ['Săn mây cùng người bản địa', 'Ngủ nhà gỗ trên sườn núi', 'Bữa tối bên bếp lửa người Mông'],
+  },
+  {
+    id: 'cu-lao-cham',
+    name: 'Một ngày rất xanh',
+    region: 'Biển',
+    province: 'Cù Lao Chàm, Quảng Nam',
+    mood: ['Tự do', 'Thiên nhiên', 'Nghỉ dưỡng'],
+    type: 'tour',
+    price: 1890000,
+    rating: 4.8,
+    duration: '2 ngày 1 đêm',
+    season: 'Tháng 3 — 8',
+    image: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Làn nước xanh trong nhìn từ bờ biển',
+    label: 'Trốn phố cuối tuần',
+    host: 'Lâm, người chèo thuyền ở đảo',
+    hostStory: 'Lâm chèo thuyền quanh đảo từ năm mười tám tuổi. Anh dẫn khách qua những bãi nhỏ chỉ người làng biển mới biết, và kể về cuộc sống xanh trên đảo.',
+    description: 'Rời phố bằng chuyến canô sớm, ngắm san hô có trách nhiệm và đón hoàng hôn bên một bữa cơm làng chài.',
+    highlights: ['Canô khứ hồi ra đảo', 'Lặn ngắm san hô có trách nhiệm', 'Bữa cơm nhà ngư dân'],
+  },
+  {
+    id: 'hoi-an',
+    name: 'Theo nắng về nhà',
+    region: 'Văn hóa',
+    province: 'Hội An, Quảng Nam',
+    mood: ['Kết nối', 'Ẩm thực', 'Văn hóa'],
+    type: 'tour',
+    price: 2150000,
+    rating: 5.0,
+    duration: '3 ngày 2 đêm',
+    season: 'Quanh năm',
+    image: 'https://images.unsplash.com/photo-1518128958364-65859d70aa41?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Phố cổ Hội An lung linh bên dòng sông',
+    label: 'Đi để gặp nhau',
+    host: 'Vy, người kể chuyện phố Hội',
+    hostStory: 'Vy mở một tiệm trà nhỏ trong căn nhà ba thế hệ. Những buổi đi bộ với chị thường kết thúc bằng một câu chuyện gia đình và chén trà sen.',
+    description: 'Đi bộ qua những con phố ít người biết, học nấu món Quảng trong căn bếp cũ và ngồi lại bên sông Hoài lúc lên đèn.',
+    highlights: ['Tản bộ cùng local host', 'Lớp nấu món Quảng tại nhà', 'Một tối nghe chuyện phố Hội'],
+  },
+  {
+    id: 'pu-luong',
+    name: 'Rừng gọi tên mình',
+    region: 'Núi rừng',
+    province: 'Pù Luông, Thanh Hóa',
+    mood: ['Bình yên', 'Thiên nhiên'],
+    type: 'stay',
+    price: 2790000,
+    rating: 4.9,
+    duration: '3 ngày 2 đêm',
+    season: 'Tháng 5 — 10',
+    image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Nắng sớm xuyên qua tán rừng xanh',
+    label: 'Ở giữa thiên nhiên',
+    host: 'Anh, người làm nhà bên ruộng',
+    hostStory: 'Anh và gia đình dựng homestay bằng gỗ bản địa ở rìa ruộng bậc thang, dành phần lớn ngày tháng chăm vườn và đón khách như người nhà.',
+    description: 'Thức dậy trong căn nhà sàn nhìn ra ruộng, đi bộ qua bản làng và dành một buổi chiều không lịch trình.',
+    highlights: ['Phòng riêng hướng ruộng', 'Bữa sáng nguyên liệu địa phương', 'Lối đi bộ từ homestay vào bản'],
+  },
+  {
+    id: 'ly-son',
+    name: 'Để biển ôm lấy mình',
+    region: 'Biển',
+    province: 'Lý Sơn, Quảng Ngãi',
+    mood: ['Tự do', 'Phiêu lưu', 'Thiên nhiên'],
+    type: 'tour',
+    price: 3290000,
+    rating: 4.8,
+    duration: '3 ngày 2 đêm',
+    season: 'Tháng 4 — 8',
+    image: 'https://images.unsplash.com/photo-1473116763249-2faaef81ccda?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Con thuyền nhỏ trôi giữa mặt biển lặng',
+    label: 'Nạp lại năng lượng',
+    host: 'Tín, người con đảo Bé',
+    hostStory: 'Tín dành tuổi trẻ đưa khách qua những vách đá núi lửa và trở về trước khi mặt biển đổi gió. Anh hiểu mỗi mùa, hòn đảo lại kể một chuyện khác.',
+    description: 'Ngắm bình minh trên miệng núi lửa, khám phá đảo Bé cùng hướng dẫn viên địa phương và thưởng thức tỏi Lý Sơn.',
+    highlights: ['Tàu cao tốc và hướng dẫn viên', 'Khám phá đảo Bé', 'Bữa tối hải sản theo mùa'],
+  },
+  {
+    id: 'hue',
+    name: 'Đi tìm một chiều xưa',
+    region: 'Văn hóa',
+    province: 'Huế, Thừa Thiên Huế',
+    mood: ['Kết nối', 'Văn hóa', 'Ẩm thực'],
+    type: 'stay',
+    price: 1790000,
+    rating: 4.9,
+    duration: '2 ngày 1 đêm',
+    season: 'Quanh năm',
+    image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Mái nhà cổ nép bên dòng sông miền Trung',
+    label: 'Chậm lại một chút',
+    host: 'Chi, người giữ vườn Huế',
+    hostStory: 'Chi chăm một khu vườn nhà rường bên sông. Chị nấu những món Huế học từ bà ngoại và tin rằng mỗi món ăn là một cách để nhớ về quê hương.',
+    description: 'Ở trong nhà vườn xưa, ghé thăm những khu vườn nhỏ và cùng chủ nhà chuẩn bị một bữa cơm Huế.',
+    highlights: ['Phòng trong nhà rường', 'Bữa cơm nhà ba thế hệ', 'Đạp xe bên bờ sông Hương'],
+  },
+  {
+    id: 'da-lat',
+    name: 'Sáng nay có sương',
+    region: 'Cao nguyên',
+    province: 'Đà Lạt, Lâm Đồng',
+    mood: ['Bình yên', 'Ẩm thực', 'Nghỉ dưỡng'],
+    type: 'stay',
+    price: 2350000,
+    rating: 4.8,
+    duration: '2 ngày 1 đêm',
+    season: 'Quanh năm',
+    image: 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Ánh nắng sớm lướt qua thung lũng nhiều sương',
+    label: 'Cuối tuần thật chậm',
+    host: 'Nhi, người trồng hoa ngoại ô',
+    hostStory: 'Nhi chăm một khu vườn nhỏ nơi ngoại ô Đà Lạt. Cô thích những buổi sáng sớm, một bình trà nóng và mời khách cùng hái rau trong vườn.',
+    description: 'Nghỉ trong căn nhà vườn yên tĩnh, hái rau buổi sáng và thưởng thức cà phê rang tại chỗ.',
+    highlights: ['Bữa sáng từ vườn nhà', 'Workshop cà phê bản địa', 'Phòng riêng nhìn ra đồi'],
+  },
+  {
+    id: 'ninh-binh',
+    name: 'Nước kể chuyện núi',
+    region: 'Thiên nhiên',
+    province: 'Tràng An, Ninh Bình',
+    mood: ['Thiên nhiên', 'Bình yên', 'Phiêu lưu'],
+    type: 'tour',
+    price: 1590000,
+    rating: 4.9,
+    duration: '2 ngày 1 đêm',
+    season: 'Tháng 1 — 9',
+    image: 'https://images.unsplash.com/photo-1540611025311-01df3cef54b5?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Núi đá vôi xanh soi bóng xuống dòng nước',
+    label: 'Thiên nhiên ôm trọn',
+    host: 'Bình, người chèo đò Tràng An',
+    hostStory: 'Bình chèo đò trên dòng Sào Khê hơn mười năm. Chú biết mỗi hang nước có tên gì và thường kể lại những truyền thuyết đã nghe từ người đi trước.',
+    description: 'Ngồi thuyền qua những hang đá vôi, đạp xe quanh làng và ngắm nắng cuối ngày trên cánh đồng.',
+    highlights: ['Thuyền Tràng An có hướng dẫn', 'Xe đạp khám phá vùng quê', 'Lưu trú nhà vườn địa phương'],
+  },
+  {
+    id: 'phu-quoc',
+    name: 'Ngày dài hơn ở đảo',
+    region: 'Biển',
+    province: 'Phú Quốc, Kiên Giang',
+    mood: ['Nghỉ dưỡng', 'Tự do', 'Thiên nhiên'],
+    type: 'stay',
+    price: 3450000,
+    rating: 4.8,
+    duration: '3 ngày 2 đêm',
+    season: 'Tháng 11 — 4',
+    image: 'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1000&q=82',
+    imageAlt: 'Bờ biển xanh ngọc lúc chiều tà',
+    label: 'Trốn về phía biển',
+    host: 'My, người làm vườn bên biển',
+    hostStory: 'My chăm khu vườn nhiệt đới trong một homestay nhỏ sát bờ. Cô muốn khách nhớ đến đảo không chỉ vì bãi biển, mà vì những người sống nơi đây.',
+    description: 'Một căn phòng nhỏ gần biển, chuyến xe thăm làng chài và một buổi hoàng hôn không cần chụp ảnh.',
+    highlights: ['Phòng riêng gần biển', 'Bữa sáng từ vườn nhà', 'Gợi ý làng chài ít người ghé'],
+  },
+]
+
+export const moods = [
+  { name: 'Bình yên', note: 'Tìm một khoảng lặng', icon: '○' },
+  { name: 'Tự do', note: 'Đi theo cách của bạn', icon: '↗' },
+  { name: 'Phiêu lưu', note: 'Ra khỏi vùng quen', icon: '⌁' },
+  { name: 'Ẩm thực', note: 'Nếm một miền đất', icon: '◌' },
+  { name: 'Thiên nhiên', note: 'Gần xanh hơn chút', icon: '⌂' },
+  { name: 'Văn hóa', note: 'Nghe chuyện địa phương', icon: '△' },
+  { name: 'Nghỉ dưỡng', note: 'Nuông chiều bản thân', icon: '☼' },
+  { name: 'Kết nối', note: 'Gần nhau hơn chút', icon: '♡' },
+]
+
+export const collections = [
+  { id: 'slow-days', title: 'Những ngày chậm rãi', mood: 'Bình yên', note: 'Cho những tâm hồn cần một khoảng thở.', image: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=82', destinations: ['pu-luong', 'da-lat', 'ta-xua'] },
+  { id: 'taste-home', title: 'Đi để nếm một miền', mood: 'Ẩm thực', note: 'Món ăn là cách đẹp nhất để nhớ về một nơi.', image: 'https://images.unsplash.com/photo-1518128958364-65859d70aa41?auto=format&fit=crop&w=1200&q=82', destinations: ['hoi-an', 'hue'] },
+  { id: 'green-trails', title: 'Gọi tên miền xanh', mood: 'Thiên nhiên', note: 'Theo con đường nhỏ về phía núi, rừng và biển.', image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=82', destinations: ['ninh-binh', 'ta-xua', 'ly-son', 'phu-quoc'] },
+]
+
+export const starterItinerary: Itinerary = {
+  title: 'Chuyến đi mình đang mơ',
+  startDate: '',
+  endDate: '',
+  items: [],
+}
+
+export const demoUsers: User[] = [
+  { id: 'demo-customer', name: 'Minh Anh', email: 'khach@moc.demo', role: 'customer' },
+  { id: 'demo-provider', name: 'Vy Nguyễn · Local Host', email: 'host@moc.demo', role: 'provider' },
+  { id: 'demo-admin', name: 'Mộc · Quản trị demo', email: 'admin@moc.demo', role: 'admin' },
+]
+
+export function formatPrice(price: number) {
+  return new Intl.NumberFormat('vi-VN').format(price) + 'đ'
+}
+
+export function formatDate(date: string) {
+  if (!date) return 'Chưa chọn ngày'
+  return new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`))
+}
+
+export function createDemoId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function localDateInputValue() {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+export function normalizeVietnamese(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLocaleLowerCase('vi')
+    .trim()
+}
