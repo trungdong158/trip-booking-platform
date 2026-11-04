@@ -65,8 +65,12 @@ export function readStore(): StorageRead {
       return { store: emptyStore(), warning: 'Dữ liệu demo không đúng định dạng. Mộc đã khôi phục dữ liệu mẫu.' }
     }
 
-    const destinations = Array.isArray(parsed.destinations)
+    const storedDestinations = Array.isArray(parsed.destinations)
       ? parsed.destinations.filter(isDestination)
+      : seedDestinations
+    const storedDestinationIds = new Set(storedDestinations.map((destination) => destination.id))
+    const destinations = storedDestinations.length
+      ? [...storedDestinations, ...seedDestinations.filter((destination) => !storedDestinationIds.has(destination.id))]
       : seedDestinations
     const users = Array.isArray(parsed.users) ? parsed.users.filter(isUser) : demoUsers
     const bookings = Array.isArray(parsed.bookings) ? parsed.bookings.filter(isBooking) : []
@@ -84,7 +88,7 @@ export function readStore(): StorageRead {
         wishlist,
         bookings,
         itinerary: isItinerary(parsed.itinerary) ? parsed.itinerary : starterItinerary,
-        destinations: destinations.length ? destinations : seedDestinations,
+        destinations,
       },
       warning: null,
     }

@@ -1,12 +1,65 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { collections, createDemoId, demoUsers, formatDate, formatPrice, localDateInputValue, moods, normalizeVietnamese, seedDestinations, starterItinerary } from './data'
+import { getDestinationCategory, getDestinationCountry, getDestinationGuide } from './destinationGuides'
 import { makeDemoBooking, readStore, writeStore } from './storage'
-import type { AppStore, Booking, Destination, User } from './types'
+import { tourPackages } from './tourPackages'
+import type { AppStore, Booking, Destination, TourPackage, User } from './types'
 import './App.css'
 
 type Route = { page: string; id: string }
 
 const TODAY_INPUT_DATE = localDateInputValue()
+
+const HOME_MOODS = [
+  { title: 'Healing', mood: 'Bình yên', note: 'Tìm một khoảng lặng', icon: '○' },
+  { title: 'Adventure', mood: 'Phiêu lưu', note: 'Ra khỏi vùng quen', icon: '↗' },
+  { title: 'Romantic', mood: 'Kết nối', note: 'Gần nhau hơn chút', icon: '♡' },
+  { title: 'Relaxation', mood: 'Nghỉ dưỡng', note: 'Nuông chiều bản thân', icon: '☼' },
+  { title: 'Discovery', mood: 'Văn hóa', note: 'Nghe chuyện địa phương', icon: '△' },
+  { title: 'Food Journey', mood: 'Ẩm thực', note: 'Nếm một miền đất', icon: '◌' },
+]
+
+const JOURNAL_STORIES = [
+  {
+    id: 'hoi-an-morning',
+    destinationId: 'hoi-an',
+    category: 'CULTURE NOTES',
+    title: 'Hội An, khi phố cổ thuộc về những người thức sớm',
+    image: 'https://images.unsplash.com/photo-1518128958364-65859d70aa41?auto=format&fit=crop&w=1200&q=82',
+    read: '6 phút đọc',
+    paragraphs: [
+      'Phố cổ dịu lại trong khoảng thời gian trước khi những cánh cửa hàng mở ra. Tiếng chổi tre trên con đường lát gạch, mùi trà mới và những chiếc đèn lồng còn chưa sáng khiến Hội An gần gũi như một lời chào.',
+      'Đi cùng một người địa phương, bạn sẽ nghe những câu chuyện không nằm trên bản đồ: căn nhà đã qua ba thế hệ, món ăn chỉ có vào một buổi trong tuần, hay một khoảng hiên luôn đón nắng sớm.',
+      'Có những nơi không cần phải khám phá thật nhanh. Chỉ cần bước chậm, ngồi lại bên một chén trà và để một ngày bình thường trở thành điều mình nhớ lâu.',
+    ],
+  },
+  {
+    id: 'ta-xua-sunrise',
+    destinationId: 'ta-xua',
+    category: 'FIELD JOURNAL',
+    title: 'Một buổi bình minh không cần phải vội',
+    image: 'https://images.unsplash.com/photo-1500530851072-f978cf4d019e?auto=format&fit=crop&w=1200&q=82',
+    read: '4 phút đọc',
+    paragraphs: [
+      'Ở Tà Xùa, buổi sáng bắt đầu khi bầu trời vẫn còn xanh thẫm. Con đường lên núi đủ quanh co để mọi người tự nhiên nói nhỏ hơn, như thể không muốn làm biển mây thức giấc.',
+      'Hà biết một triền đồi khuất gió, nơi có thể ngồi chờ nắng lên. Không ai thúc giục phải chụp được tấm hình đẹp nhất. Chúng tôi chỉ chia nhau bình trà nóng và nhìn mây đổi màu.',
+      'Khi trở về, điều mang theo không chỉ là cảnh sắc. Đó còn là cảm giác mình đã dành trọn một buổi sáng cho chính mình.',
+    ],
+  },
+  {
+    id: 'hue-family-table',
+    destinationId: 'hue',
+    category: 'TASTE & PLACE',
+    title: 'Nếm Huế qua một mâm cơm nhà',
+    image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=82',
+    read: '5 phút đọc',
+    paragraphs: [
+      'Một mâm cơm Huế thường bắt đầu từ những điều rất nhỏ: mớ rau trong vườn, chén nước mắm pha vừa tay và câu hỏi hôm nay bạn muốn ăn cay đến đâu.',
+      'Chi kể chuyện món ăn bằng những ký ức gia đình. Có món học từ bà ngoại, có món thay đổi theo mùa, và có món nhất định phải ăn khi trời vừa tạnh mưa.',
+      'Ngồi bên mâm cơm, người đi đường và người trong nhà gần nhau hơn. Đôi khi, đó là cách dễ chịu nhất để hiểu một miền đất.',
+    ],
+  },
+]
 
 function routeFromHash(): Route {
   const hash = window.location.hash
@@ -26,6 +79,26 @@ function getTripDurationDays(start: string, end: string) {
   const startTime = Date.UTC(startYear, startMonth - 1, startDay)
   const endTime = Date.UTC(endYear, endMonth - 1, endDay)
   return Math.max(1, Math.floor((endTime - startTime) / 86400000) + 1)
+}
+
+function matchesTravelSeason(seasonText: string, selectedSeason: string) {
+  if (!selectedSeason || seasonText.toLocaleLowerCase('vi').includes('quanh năm')) return true
+  const monthsBySeason: Record<string, number[]> = {
+    spring: [3, 4, 5],
+    summer: [6, 7, 8],
+    autumn: [9, 10, 11],
+    winter: [12, 1, 2],
+  }
+  const selectedMonths = monthsBySeason[selectedSeason] ?? []
+  const ranges = [...seasonText.matchAll(/tháng\s*(\d+)\s*[—–-]\s*(\d+)/giu)]
+  if (!ranges.length) return selectedMonths.some((month) => seasonText.includes(String(month)))
+  return ranges.some((range) => {
+    const start = Number(range[1])
+    const end = Number(range[2])
+    return selectedMonths.some((month) => start <= end
+      ? month >= start && month <= end
+      : month >= start || month <= end)
+  })
 }
 
 function ArrowIcon({ left = false }: { left?: boolean }) {
@@ -67,6 +140,38 @@ function App() {
   const [adminDestinationName, setAdminDestinationName] = useState('')
   const [adminDestinationPrice, setAdminDestinationPrice] = useState('')
   const [minimumBookingDate, setMinimumBookingDate] = useState('')
+  const [homeDestination, setHomeDestination] = useState('')
+  const [homeDeparture, setHomeDeparture] = useState('')
+  const [homeReturn, setHomeReturn] = useState('')
+  const [travelDates, setTravelDates] = useState<{ departure: string; returnDate: string } | null>(null)
+  const [newsletterEmail, setNewsletterEmail] = useState('')
+  const [newsletterMessage, setNewsletterMessage] = useState('')
+  const [destinationQuery, setDestinationQuery] = useState('')
+  const [destinationSeason, setDestinationSeason] = useState('')
+  const [destinationCategory, setDestinationCategory] = useState('')
+  const [destinationPopularity, setDestinationPopularity] = useState('')
+  const [destinationBudget, setDestinationBudget] = useState('')
+  const [destinationSort, setDestinationSort] = useState('popular')
+  const [destinationLimit, setDestinationLimit] = useState(6)
+  const [destinationsLoading, setDestinationsLoading] = useState(false)
+  const [tourQuery, setTourQuery] = useState('')
+  const [tourMinimumPrice, setTourMinimumPrice] = useState('')
+  const [tourMaximumPrice, setTourMaximumPrice] = useState('')
+  const [tourDepartureDate, setTourDepartureDate] = useState('')
+  const [tourDuration, setTourDuration] = useState('')
+  const [tourDestination, setTourDestination] = useState('')
+  const [tourType, setTourType] = useState('')
+  const [tourMinimumRating, setTourMinimumRating] = useState('')
+  const [tourSeats, setTourSeats] = useState('')
+  const [tourSort, setTourSort] = useState('popular')
+  const [tourPage, setTourPage] = useState(1)
+  const [tourLoading, setTourLoading] = useState(false)
+  const [comparedTourIds, setComparedTourIds] = useState<string[]>([])
+  const [comparisonOpen, setComparisonOpen] = useState(false)
+  const [bookingDate, setBookingDate] = useState('')
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewText, setReviewText] = useState('')
+  const [reviewSubmitted, setReviewSubmitted] = useState(false)
   const [detailSlide, setDetailSlide] = useState(0)
   const bookingSubmissionInProgress = useRef(false)
   const [bookingDestination, setBookingDestination] = useState<Destination | null>(null)
@@ -77,11 +182,34 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const handleNavigation = () => setRoute(routeFromHash())
+    const handleNavigation = () => {
+      setRoute(routeFromHash())
+      setTourPage(1)
+    }
     window.addEventListener('hashchange', handleNavigation)
     if (!window.location.hash) window.location.hash = '/home'
     return () => window.removeEventListener('hashchange', handleNavigation)
   }, [])
+
+  useEffect(() => {
+    const listingRoutes = ['destinations', 'domestic', 'international', 'categories']
+    const showTimer = window.setTimeout(() => setDestinationsLoading(listingRoutes.includes(route.page)), 0)
+    const hideTimer = window.setTimeout(() => setDestinationsLoading(false), 240)
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [route.page])
+
+  useEffect(() => {
+    const tourRoutes = ['tours', 'domestic-tours', 'international-tours', 'themed-tours', 'promotional-tours']
+    const showTimer = window.setTimeout(() => setTourLoading(tourRoutes.includes(route.page)), 0)
+    const hideTimer = window.setTimeout(() => setTourLoading(false), 220)
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [route.page])
 
   useEffect(() => {
     const timer = window.setTimeout(() => setToast(null), 4200)
@@ -138,9 +266,71 @@ function App() {
             : b.rating - a.rating || a.price - b.price)
   }, [maximumPrice, minimumRating, mood, query, region, serviceType, sortBy, store.destinations])
 
+  const destinationCategories = useMemo(
+    () => [...new Set(store.destinations.map((destination) => getDestinationCategory(destination)))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [store.destinations],
+  )
+
+  const destinationResults = useMemo(() => {
+    const normalizedQuery = normalizeVietnamese(destinationQuery)
+    return store.destinations
+      .filter((destination) => {
+        const country = getDestinationCountry(destination)
+        const searchable = normalizeVietnamese(`${destination.name} ${destination.province} ${destination.region} ${country}`)
+        const domestic = country === 'Việt Nam'
+        return (!normalizedQuery || searchable.includes(normalizedQuery))
+          && (route.page !== 'domestic' || domestic)
+          && (route.page !== 'international' || !domestic)
+          && (!destinationCategory || getDestinationCategory(destination) === destinationCategory)
+          && matchesTravelSeason(destination.season, destinationSeason)
+          && (!destinationBudget || destination.price <= Number(destinationBudget))
+          && (!destinationPopularity || (destination.popularity ?? destination.rating * 20) >= Number(destinationPopularity))
+      })
+      .sort((a, b) => destinationSort === 'alphabetical'
+        ? a.province.localeCompare(b.province, 'vi') || a.name.localeCompare(b.name, 'vi')
+        : (b.popularity ?? b.rating * 20) - (a.popularity ?? a.rating * 20) || b.rating - a.rating)
+  }, [destinationBudget, destinationCategory, destinationPopularity, destinationQuery, destinationSeason, destinationSort, route.page, store.destinations])
+
+  const filteredTours = useMemo(() => {
+    const normalizedQuery = normalizeVietnamese(tourQuery)
+    const destinationById = new Map(store.destinations.map((destination) => [destination.id, destination]))
+    return tourPackages
+      .filter((tour) => {
+        const destination = destinationById.get(tour.destinationId)
+        const searchable = normalizeVietnamese(`${tour.title} ${tour.subtitle} ${tour.keywords.join(' ')} ${destination?.province ?? ''} ${destination ? getDestinationCountry(destination) : ''}`)
+        const departureAvailable = tour.departures.some((departure) => {
+          const hasDate = departure.date >= (tourDepartureDate || TODAY_INPUT_DATE)
+          const hasSeats = !tourSeats || departure.seats >= Number(tourSeats)
+          return hasDate && hasSeats
+        })
+        return (!normalizedQuery || searchable.includes(normalizedQuery))
+          && (route.page !== 'domestic-tours' || tour.domestic)
+          && (route.page !== 'international-tours' || !tour.domestic)
+          && (route.page !== 'themed-tours' || tour.type === tourType || !tourType)
+          && (route.page !== 'promotional-tours' || tour.promotional)
+          && (!tourMinimumPrice || tour.price >= Number(tourMinimumPrice))
+          && (!tourMaximumPrice || tour.price <= Number(tourMaximumPrice))
+          && (!tourDuration || (tourDuration === 'long' ? tour.durationDays >= 5 : tour.durationDays === Number(tourDuration)))
+          && (!tourDestination || tour.destinationId === tourDestination)
+          && (!tourType || tour.type === tourType)
+          && (!tourMinimumRating || tour.rating >= Number(tourMinimumRating))
+          && departureAvailable
+      })
+      .sort((a, b) => tourSort === 'price-asc' ? a.price - b.price
+        : tourSort === 'price-desc' ? b.price - a.price
+          : tourSort === 'rating' ? b.rating - a.rating || b.reviewCount - a.reviewCount
+            : tourSort === 'newest' ? b.createdAt.localeCompare(a.createdAt)
+              : b.popularity - a.popularity)
+  }, [route.page, store.destinations, tourDepartureDate, tourDestination, tourDuration, tourMaximumPrice, tourMinimumPrice, tourMinimumRating, tourQuery, tourSeats, tourSort, tourType])
+
   function navigate(page: string, id = '') {
     setMenuOpen(false)
-    if (page === 'destination') setDetailSlide(0)
+    if (page === 'destination') {
+      setDetailSlide(0)
+      setReviewRating(5)
+      setReviewText('')
+      setReviewSubmitted(false)
+    }
     navigateBrowserRoute(page, id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -184,15 +374,36 @@ function App() {
     navigate('dashboard')
   }
 
-  function openBooking(destination: Destination) {
+  function openBooking(destination: Destination, departureDate?: string, guests?: number) {
     if (store.destinations.some((item) => item.id === destination.id)) {
-      setMinimumBookingDate(localDateInputValue())
-      setBookingGuestCount(2)
+      setMinimumBookingDate(departureDate || travelDates?.departure || localDateInputValue())
+      setBookingDate(departureDate ?? '')
+      if (guests) setBookingGuestCount(guests)
       setBookingDestination(destination)
       setBookingConfirmation(null)
     } else {
       setToast('Hành trình này không còn khả dụng. Hãy chọn một gợi ý khác.')
     }
+  }
+
+  function bookTour(tour: TourPackage, departureDate: string, guests: number) {
+    const destination = store.destinations.find((item) => item.id === tour.destinationId)
+    if (!destination) {
+      setToast('Điểm đến của tour không còn khả dụng. Hãy tải lại dữ liệu.')
+      return
+    }
+    openBooking({ ...destination, name: tour.title, price: tour.price, duration: `${tour.durationDays} ngày ${tour.durationDays - 1} đêm` }, departureDate, guests)
+  }
+
+  function toggleTourComparison(tourId: string) {
+    setComparedTourIds((current) => {
+      if (current.includes(tourId)) return current.filter((id) => id !== tourId)
+      if (current.length >= 3) {
+        setToast('Bạn có thể so sánh tối đa 3 tour cùng lúc.')
+        return current
+      }
+      return [...current, tourId]
+    })
   }
 
   function createBooking(event: FormEvent<HTMLFormElement>) {
@@ -246,12 +457,37 @@ function App() {
     setMaximumPrice('')
     setMinimumRating('')
     setSortBy('popular')
+    setTravelDates(null)
+    setHomeDestination('')
+    setHomeDeparture('')
+    setHomeReturn('')
+  }
+
+  function searchFromHome(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (homeDeparture && homeReturn && homeReturn < homeDeparture) {
+      setToast('Ngày trở về cần sau ngày khởi hành.')
+      return
+    }
+    setQuery(homeDestination.trim())
+    setMinimumBookingDate(homeDeparture || TODAY_INPUT_DATE)
+    setTravelDates(homeDeparture || homeReturn ? { departure: homeDeparture, returnDate: homeReturn } : null)
+    navigate('explore')
+  }
+
+  function subscribeToNewsletter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setNewsletterMessage('Cảm ơn bạn! Email đã được ghi nhận trong phiên demo này.')
+    setNewsletterEmail('')
   }
 
   function Header() {
     const links = [
+      ['Điểm đến', 'destinations'],
+      ['Tour', 'tours'],
       ['Khám phá', 'explore'],
       ['Bộ sưu tập', 'collections'],
+      ['Tạp chí', 'journal'],
       ['Lên lịch trình', 'planner'],
     ]
     return (
@@ -267,6 +503,7 @@ function App() {
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>
         <nav className={`main-nav${menuOpen ? ' is-open' : ''}`} aria-label="Điều hướng chính">
+          <a className="nav-search" href="#/explore" onClick={() => setMenuOpen(false)}><span aria-hidden="true">⌕</span> Tìm kiếm</a>
           {links.map(([label, page]) => <a href={`#/${page}`} key={page} onClick={() => setMenuOpen(false)}>{label}</a>)}
           {store.user && <a className="nav-notifications" href="#/notifications" onClick={() => setMenuOpen(false)}>Thông báo <span>{store.bookings.filter((booking) => booking.status === 'upcoming'
             && (store.user?.role === 'admin'
@@ -382,10 +619,219 @@ function App() {
     )
   }
 
+  function DestinationExplorerCard({ destination }: { destination: Destination }) {
+    const saved = store.wishlist.includes(destination.id)
+    return (
+      <article className="destination-explorer-card">
+        <div className="destination-explorer-image">
+          <button type="button" className="destination-image-link" onClick={() => navigate('destination', destination.id)} aria-label={`Xem ${destination.province}`}>
+            <img src={destination.image} alt={destination.imageAlt} loading="lazy" />
+          </button>
+          <span className="destination-country-tag">{getDestinationCountry(destination)}</span>
+          <button className={`save-button${saved ? ' is-saved' : ''}`} type="button" aria-label={saved ? `Bỏ lưu ${destination.province}` : `Lưu ${destination.province}`} aria-pressed={saved} onClick={() => toggleWishlist(destination.id)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.6c0 4.2-8.8 10-8.8 10s-8.8-5.8-8.8-10a4.6 4.6 0 0 1 8.8-1.8 4.6 4.6 0 0 1 8.8 1.8Z" /></svg>
+          </button>
+          <span className="destination-image-rating">★ {destination.rating.toFixed(1)}</span>
+        </div>
+        <div className="destination-explorer-copy">
+          <div className="destination-explorer-meta"><span>{getDestinationCategory(destination)}</span><span>{destination.duration}</span></div>
+          <h2><a href={`#/destination/${destination.id}`}>{destination.province}</a></h2>
+          <p>{destination.description}</p>
+          <div className="destination-explorer-bottom">
+            <span><strong>{formatPrice(destination.price)}</strong><small>từ / người</small></span>
+            <button type="button" onClick={() => navigate('destination', destination.id)}>Khám phá <ArrowIcon /></button>
+          </div>
+        </div>
+      </article>
+    )
+  }
+
+  function DestinationsPage() {
+    const isDomestic = route.page === 'domestic'
+    const isInternational = route.page === 'international'
+    const pageTitle = isDomestic ? 'Việt Nam gần hơn' : isInternational ? 'Ra ngoài biên giới' : 'Những nơi đáng nhớ'
+    const pageDescription = isDomestic
+      ? 'Tìm một chuyến đi gần gũi qua những miền đất, câu chuyện và hương vị Việt Nam.'
+      : isInternational
+        ? 'Mở rộng bản đồ và khám phá những điểm đến quốc tế cùng hướng dẫn từ Mộc.'
+        : 'Tìm điểm đến theo mùa, ngân sách và nhịp điệu bạn đang tìm kiếm.'
+    function retryDestinationData() {
+      const state = readStore()
+      setStore(state.store)
+      setToast(state.warning ?? 'Đã tải lại dữ liệu điểm đến.')
+    }
+    return (
+      <section className="destination-catalog section-wrap">
+        <div className="destination-catalog-intro">
+          <div><Eyebrow>DESTINATIONS · MỘC JOURNEYS</Eyebrow><h1>{pageTitle}<br /><em>theo cách của bạn.</em></h1><p>{pageDescription}</p></div>
+          <div className="destination-count"><strong>{destinationResults.length}</strong><span>điểm đến<br />đang chờ bạn</span></div>
+        </div>
+        <nav className="destination-tabs" aria-label="Nhóm điểm đến">
+          <a className={route.page === 'destinations' ? 'is-active' : ''} href="#/destinations">Tất cả</a>
+          <a className={isDomestic ? 'is-active' : ''} href="#/domestic">Trong nước</a>
+          <a className={isInternational ? 'is-active' : ''} href="#/international">Quốc tế</a>
+          <a className={route.page === 'categories' ? 'is-active' : ''} href="#/categories">Theo danh mục</a>
+        </nav>
+        {route.page === 'categories' ? (
+          <div className="destination-category-grid">
+            {destinationCategories.map((category, index) => {
+              const items = store.destinations.filter((destination) => getDestinationCategory(destination) === category)
+              const destination = items[0]
+              if (!destination) return null
+              return <button className="destination-category-card" type="button" key={category} onClick={() => { setDestinationCategory(category); navigate('destinations') }}><img src={destination.image} alt="" loading="lazy" /><span className="destination-category-shade" /><span className="destination-category-number">0{index + 1} · {items.length} ĐIỂM ĐẾN</span><strong>{category}</strong><span className="destination-category-link">Tìm cảm hứng <ArrowIcon /></span></button>
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="destination-filters">
+              <label className="destination-search-field"><span aria-hidden="true">⌕</span><span className="sr-only">Tìm theo tên, quốc gia hoặc miền</span><input aria-label="Tìm điểm đến theo tên, quốc gia hoặc miền" placeholder="Tên điểm đến, quốc gia, miền..." value={destinationQuery} onChange={(event) => { setDestinationQuery(event.target.value); setDestinationLimit(6) }} /></label>
+              <label><span className="sr-only">Mùa du lịch</span><select aria-label="Lọc theo mùa du lịch" value={destinationSeason} onChange={(event) => { setDestinationSeason(event.target.value); setDestinationLimit(6) }}><option value="">Mọi mùa</option><option value="spring">Mùa xuân · Tháng 3–5</option><option value="summer">Mùa hè · Tháng 6–8</option><option value="autumn">Mùa thu · Tháng 9–11</option><option value="winter">Mùa đông · Tháng 12–2</option></select></label>
+              <label><span className="sr-only">Danh mục</span><select aria-label="Lọc theo danh mục" value={destinationCategory} onChange={(event) => { setDestinationCategory(event.target.value); setDestinationLimit(6) }}><option value="">Mọi danh mục</option>{destinationCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              <label><span className="sr-only">Mức độ phổ biến</span><select aria-label="Lọc theo độ phổ biến" value={destinationPopularity} onChange={(event) => { setDestinationPopularity(event.target.value); setDestinationLimit(6) }}><option value="">Mọi mức độ phổ biến</option><option value="99">Được yêu thích nhất</option><option value="97">Nổi bật</option></select></label>
+              <label><span className="sr-only">Ngân sách tối đa</span><select aria-label="Lọc theo ngân sách" value={destinationBudget} onChange={(event) => { setDestinationBudget(event.target.value); setDestinationLimit(6) }}><option value="">Mọi ngân sách</option><option value="3000000">Đến 3 triệu</option><option value="6000000">Đến 6 triệu</option><option value="10000000">Đến 10 triệu</option><option value="15000000">Đến 15 triệu</option></select></label>
+              <label><span className="sr-only">Sắp xếp điểm đến</span><select aria-label="Sắp xếp điểm đến" value={destinationSort} onChange={(event) => setDestinationSort(event.target.value)}><option value="popular">Phổ biến nhất</option><option value="alphabetical">Tên A–Z</option></select></label>
+              {(destinationQuery || destinationSeason || destinationCategory || destinationPopularity || destinationBudget) && <button className="destination-clear-filters" type="button" onClick={() => { setDestinationQuery(''); setDestinationSeason(''); setDestinationCategory(''); setDestinationPopularity(''); setDestinationBudget(''); setDestinationSort('popular'); setDestinationLimit(6) }}>Xóa lọc</button>}
+            </div>
+            <div className="destination-results-heading"><Eyebrow>{isDomestic ? 'DOMESTIC COLLECTION' : isInternational ? 'INTERNATIONAL COLLECTION' : 'FIND YOUR NEXT PLACE'}</Eyebrow><span role="status">{destinationsLoading ? 'Đang tìm điểm đến…' : `${destinationResults.length} điểm đến`}</span></div>
+            {destinationsLoading ? (
+              <div className="destination-explorer-grid" aria-label="Đang tải điểm đến" aria-busy="true">{Array.from({ length: 3 }, (_, index) => <div className="destination-skeleton" key={index}><span /><div><i /><i /><i /></div></div>)}</div>
+            ) : store.destinations.length === 0 ? (
+              <div className="destination-state destination-error" role="alert"><span>!</span><h2>Chưa thể tải danh sách điểm đến</h2><p>Dữ liệu trên thiết bị hiện không khả dụng. Hãy thử tải lại để khôi phục danh sách demo.</p><button className="modal-submit" type="button" onClick={retryDestinationData}>Tải lại dữ liệu <ArrowIcon /></button></div>
+            ) : destinationResults.length === 0 ? (
+              <div className="destination-state" role="status"><span>○</span><h2>Chưa tìm thấy điểm đến phù hợp</h2><p>Thử đổi từ khóa hoặc nới rộng một bộ lọc để xem thêm lựa chọn.</p><button className="secondary-button" type="button" onClick={() => { setDestinationQuery(''); setDestinationSeason(''); setDestinationCategory(''); setDestinationPopularity(''); setDestinationBudget('') }}>Xóa bộ lọc</button></div>
+            ) : (
+              <>
+                <div className="destination-explorer-grid">{destinationResults.slice(0, destinationLimit).map((destination) => <DestinationExplorerCard destination={destination} key={destination.id} />)}</div>
+                {destinationLimit < destinationResults.length && <div className="destination-load-more"><button className="secondary-button" type="button" onClick={() => setDestinationLimit((current) => current + 6)}>Tải thêm điểm đến <span>({destinationResults.length - destinationLimit} còn lại)</span></button></div>}
+              </>
+            )}
+          </>
+        )}
+      </section>
+    )
+  }
+
+  function TourCard({ tour }: { tour: TourPackage }) {
+    const destination = store.destinations.find((item) => item.id === tour.destinationId)
+    const saved = store.wishlist.includes(tour.destinationId)
+    const compareSelected = comparedTourIds.includes(tour.id)
+    const nextDeparture = tour.departures.find((departure) => departure.date >= TODAY_INPUT_DATE)
+    return (
+      <article className="tour-package-card">
+        <div className="tour-package-image">
+          <a href={`#/tour/${tour.id}`} aria-label={`Xem tour ${tour.title}`}><img src={tour.gallery[0]?.image ?? destination?.image} alt={tour.gallery[0]?.alt ?? destination?.imageAlt} loading="lazy" /></a>
+          <span className="tour-package-type">{tour.domestic ? 'TRONG NƯỚC' : 'QUỐC TẾ'} · {tour.type.toUpperCase()}</span>
+          {tour.discountPercent > 0 && <span className="tour-package-discount">−{tour.discountPercent}%</span>}
+          <button className={`save-button${saved ? ' is-saved' : ''}`} type="button" aria-label={saved ? `Bỏ lưu ${tour.title}` : `Lưu ${tour.title}`} aria-pressed={saved} onClick={() => toggleWishlist(tour.destinationId)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.6c0 4.2-8.8 10-8.8 10s-8.8-5.8-8.8-10a4.6 4.6 0 0 1 8.8-1.8 4.6 4.6 0 0 1 8.8 1.8Z" /></svg></button>
+          <span className="tour-package-rating">★ {tour.rating.toFixed(1)} <small>({tour.reviewCount})</small></span>
+        </div>
+        <div className="tour-package-copy">
+          <div className="tour-package-location">{destination?.province ?? 'Điểm đến'} <span>·</span> {tour.durationDays} ngày</div>
+          <h2><a href={`#/tour/${tour.id}`}>{tour.title}</a></h2>
+          <p>{tour.subtitle}</p>
+          <div className="tour-package-facts"><span>◷ {tour.durationDays}N{tour.durationDays - 1}Đ</span><span>♧ Tối đa {tour.maxGroupSize} khách</span><span>⌖ {nextDeparture ? formatDate(nextDeparture.date) : 'Liên hệ'}</span></div>
+          <div className="tour-package-price-row"><span>{tour.discountPercent > 0 && <del>{formatPrice(Math.round(tour.price / (1 - tour.discountPercent / 100)))}</del>}<strong>{formatPrice(tour.price)}</strong><small> / khách</small></span><a href={`#/tour/${tour.id}`}>Chi tiết <ArrowIcon /></a></div>
+          <div className="tour-package-actions"><label><input type="checkbox" checked={compareSelected} onChange={() => toggleTourComparison(tour.id)} /> So sánh</label><button type="button" disabled={!nextDeparture} onClick={() => nextDeparture && bookTour(tour, nextDeparture.date, Math.min(2, tour.maxGroupSize))}>{nextDeparture ? 'Đặt chỗ' : 'Hết lịch'} <ArrowIcon /></button></div>
+        </div>
+      </article>
+    )
+  }
+
+  function ToursPage() {
+    const headings: Record<string, { title: string; subtitle: string }> = {
+      tours: { title: 'Tour được thiết kế để nhớ lâu', subtitle: 'Những hành trình nhóm nhỏ, lịch trình rõ ràng và người địa phương đồng hành.' },
+      'domestic-tours': { title: 'Khám phá Việt Nam', subtitle: 'Từ núi rừng và biển đảo đến phố cổ, đi sâu hơn vào những miền đất thân quen.' },
+      'international-tours': { title: 'Thế giới rộng hơn', subtitle: 'Những chuyến đi quốc tế nhóm nhỏ, có hướng dẫn viên và lịch trình minh bạch.' },
+      'themed-tours': { title: 'Đi theo điều mình thích', subtitle: 'Chọn một chủ đề, tìm một nhịp đi phù hợp và để hành trình tự kể chuyện.' },
+      'promotional-tours': { title: 'Ưu đãi theo mùa', subtitle: 'Một vài hành trình đang có giá demo đặc biệt. Chọn ngày khởi hành phù hợp với bạn.' },
+    }
+    const heading = headings[route.page] ?? headings.tours
+    const pageCount = Math.max(1, Math.ceil(filteredTours.length / 6))
+    const pageTours = filteredTours.slice((tourPage - 1) * 6, tourPage * 6)
+    const comparisonRows: { label: string; value: (tour: TourPackage) => string }[] = [
+      { label: 'Giá', value: (tour) => formatPrice(tour.price) },
+      { label: 'Thời lượng', value: (tour) => `${tour.durationDays} ngày` },
+      { label: 'Đánh giá', value: (tour) => `${tour.rating.toFixed(1)} · ${tour.reviewCount} review` },
+      { label: 'Quy mô nhóm', value: (tour) => `Tối đa ${tour.maxGroupSize} khách` },
+      { label: 'Khởi hành gần nhất', value: (tour) => {
+        const departure = tour.departures.find((item) => item.date >= TODAY_INPUT_DATE)
+        return departure ? formatDate(departure.date) : 'Hết lịch'
+      } },
+    ]
+    return (
+      <section className="tour-catalog section-wrap">
+        <div className="tour-catalog-heading"><div><Eyebrow>CURATED TOURS · MỘC JOURNEYS</Eyebrow><h1>{heading.title.split(' ').slice(0, -1).join(' ')}<br /><em>{heading.title.split(' ').slice(-1)}</em></h1><p>{heading.subtitle}</p></div><div className="tour-catalog-count"><strong>{filteredTours.length}</strong><span>hành trình<br />đang mở</span></div></div>
+        <nav className="tour-tabs" aria-label="Danh mục tour"><a className={route.page === 'tours' ? 'is-active' : ''} href="#/tours">Tất cả tour</a><a className={route.page === 'domestic-tours' ? 'is-active' : ''} href="#/domestic-tours">Trong nước</a><a className={route.page === 'international-tours' ? 'is-active' : ''} href="#/international-tours">Quốc tế</a><a className={route.page === 'themed-tours' ? 'is-active' : ''} href="#/themed-tours">Theo chủ đề</a><a className={route.page === 'promotional-tours' ? 'is-active' : ''} href="#/promotional-tours">Đang ưu đãi</a></nav>
+        {route.page === 'themed-tours' && <div className="tour-theme-chips" aria-label="Chọn chủ đề">{[['adventure', 'Phiêu lưu'], ['culture', 'Văn hóa'], ['nature', 'Thiên nhiên'], ['food', 'Ẩm thực'], ['relaxation', 'Nghỉ dưỡng']].map(([value, label]) => <button key={value} className={tourType === value ? 'is-active' : ''} type="button" onClick={() => { setTourType((current) => current === value ? '' : value); setTourPage(1) }}>{label}</button>)}</div>}
+        <div className="tour-filter-panel">
+          <label className="tour-search-field"><span aria-hidden="true">⌕</span><input aria-label="Tìm tour theo điểm đến, tên hoặc từ khóa" placeholder="Tên tour, điểm đến, trải nghiệm..." value={tourQuery} onChange={(event) => { setTourQuery(event.target.value); setTourPage(1) }} /></label>
+          <label><span className="sr-only">Giá tối thiểu</span><select aria-label="Giá tour từ" value={tourMinimumPrice} onChange={(event) => { setTourMinimumPrice(event.target.value); setTourPage(1) }}><option value="">Giá từ</option><option value="2000000">2 triệu</option><option value="5000000">5 triệu</option><option value="9000000">9 triệu</option></select></label>
+          <label><span className="sr-only">Giá tối đa</span><select aria-label="Giá tour đến" value={tourMaximumPrice} onChange={(event) => { setTourMaximumPrice(event.target.value); setTourPage(1) }}><option value="">Giá đến</option><option value="3000000">3 triệu</option><option value="6000000">6 triệu</option><option value="10000000">10 triệu</option><option value="15000000">15 triệu</option></select></label>
+          <label><span className="sr-only">Ngày khởi hành sau ngày</span><input aria-label="Ngày khởi hành từ" type="date" min={TODAY_INPUT_DATE} value={tourDepartureDate} onChange={(event) => { setTourDepartureDate(event.target.value); setTourPage(1) }} /></label>
+          <label><span className="sr-only">Thời lượng tour</span><select aria-label="Thời lượng tour" value={tourDuration} onChange={(event) => { setTourDuration(event.target.value); setTourPage(1) }}><option value="">Mọi thời lượng</option><option value="2">2 ngày</option><option value="3">3 ngày</option><option value="4">4 ngày</option><option value="long">5 ngày trở lên</option></select></label>
+          <label><span className="sr-only">Điểm đến</span><select aria-label="Điểm đến tour" value={tourDestination} onChange={(event) => { setTourDestination(event.target.value); setTourPage(1) }}><option value="">Mọi điểm đến</option>{[...new Set(tourPackages.map((tour) => tour.destinationId))].map((id) => { const destination = store.destinations.find((item) => item.id === id); return destination ? <option value={id} key={id}>{destination.province}</option> : null })}</select></label>
+          <label><span className="sr-only">Loại hình tour</span><select aria-label="Loại hình tour" value={tourType} onChange={(event) => { setTourType(event.target.value); setTourPage(1) }}><option value="">Mọi chủ đề</option><option value="adventure">Phiêu lưu</option><option value="culture">Văn hóa</option><option value="nature">Thiên nhiên</option><option value="food">Ẩm thực</option><option value="relaxation">Nghỉ dưỡng</option></select></label>
+          <label><span className="sr-only">Đánh giá tối thiểu</span><select aria-label="Đánh giá tối thiểu" value={tourMinimumRating} onChange={(event) => { setTourMinimumRating(event.target.value); setTourPage(1) }}><option value="">Mọi đánh giá</option><option value="4.8">Từ 4.8 sao</option><option value="4.9">Từ 4.9 sao</option></select></label>
+          <label><span className="sr-only">Số chỗ còn trống</span><select aria-label="Số chỗ còn trống" value={tourSeats} onChange={(event) => { setTourSeats(event.target.value); setTourPage(1) }}><option value="">Mọi số chỗ</option><option value="2">Còn từ 2 chỗ</option><option value="4">Còn từ 4 chỗ</option><option value="6">Còn từ 6 chỗ</option></select></label>
+          <label><span className="sr-only">Sắp xếp tour</span><select aria-label="Sắp xếp tour" value={tourSort} onChange={(event) => setTourSort(event.target.value)}><option value="popular">Phổ biến</option><option value="price-asc">Giá thấp trước</option><option value="price-desc">Giá cao trước</option><option value="rating">Đánh giá cao</option><option value="newest">Mới nhất</option></select></label>
+          <button className="tour-filter-reset" type="button" onClick={() => { setTourQuery(''); setTourMinimumPrice(''); setTourMaximumPrice(''); setTourDepartureDate(''); setTourDuration(''); setTourDestination(''); setTourType(''); setTourMinimumRating(''); setTourSeats(''); setTourSort('popular'); setTourPage(1) }}>Xóa lọc</button>
+        </div>
+        <div className="tour-catalog-status"><Eyebrow>{route.page === 'promotional-tours' ? 'LIMITED-TIME OFFERS' : route.page === 'themed-tours' ? 'TRAVEL YOUR WAY' : route.page === 'international-tours' ? 'BEYOND BORDERS' : route.page === 'domestic-tours' ? 'LOCAL STORIES' : 'SMALL GROUP · BIG MEMORIES'}</Eyebrow><span role="status">{tourLoading ? 'Đang tìm tour...' : `Tìm thấy ${filteredTours.length} tour`}</span></div>
+        {tourLoading ? <div className="tour-package-grid" aria-busy="true" aria-label="Đang tải tour">{Array.from({ length: 3 }, (_, index) => <div className="tour-package-skeleton" key={index}><span /><div><i /><i /><i /></div></div>)}</div>
+          : filteredTours.length === 0 ? <div className="destination-state" role="status"><span>○</span><h2>Chưa có tour phù hợp</h2><p>Thử đổi bộ lọc hoặc từ khóa để xem thêm các hành trình đang mở.</p><button className="secondary-button" type="button" onClick={() => { setTourQuery(''); setTourMinimumPrice(''); setTourMaximumPrice(''); setTourDepartureDate(''); setTourDuration(''); setTourDestination(''); setTourType(''); setTourMinimumRating(''); setTourSeats('') }}>Xóa bộ lọc</button></div>
+            : <><div className="tour-package-grid">{pageTours.map((tour) => <TourCard key={tour.id} tour={tour} />)}</div>{pageCount > 1 && <nav className="tour-pagination" aria-label="Phân trang tour"><button type="button" disabled={tourPage === 1} onClick={() => setTourPage((page) => page - 1)}>← Trước</button>{Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => <button key={page} className={page === tourPage ? 'is-active' : ''} aria-current={page === tourPage ? 'page' : undefined} type="button" onClick={() => setTourPage(page)}>{page}</button>)}<button type="button" disabled={tourPage === pageCount} onClick={() => setTourPage((page) => page + 1)}>Tiếp →</button></nav>}</>}
+        {comparedTourIds.length > 0 && <div className="tour-compare-tray"><div><strong>{comparedTourIds.length} tour được chọn</strong><span>Chọn tối thiểu 2 tour để so sánh</span></div><div>{comparedTourIds.map((id) => <button type="button" key={id} onClick={() => toggleTourComparison(id)} aria-label={`Bỏ ${tourPackages.find((tour) => tour.id === id)?.title} khỏi so sánh`}>× {tourPackages.find((tour) => tour.id === id)?.title}</button>)}</div><button className="tour-compare-open" type="button" disabled={comparedTourIds.length < 2} onClick={() => setComparisonOpen((open) => !open)}>{comparisonOpen ? 'Đóng so sánh' : 'So sánh ngay'}</button>{comparisonOpen && <div className="tour-comparison-table">{comparisonRows.map((row) => <div className="tour-comparison-row" key={row.label}><strong>{row.label}</strong>{comparedTourIds.map((id) => { const tour = tourPackages.find((item) => item.id === id); return <span key={id}>{tour ? row.value(tour) : '—'}</span> })}</div>)}</div>}</div>}
+      </section>
+    )
+  }
+
+  function TourDetailPage() {
+    const tour = tourPackages.find((item) => item.id === route.id)
+    if (!tour) return NotFound({ onBack: () => navigate('tours') })
+    const destination = store.destinations.find((item) => item.id === tour.destinationId)
+    if (!destination) return NotFound({ onBack: () => navigate('tours') })
+    const nextDeparture = tour.departures.find((departure) => departure.date >= TODAY_INPUT_DATE)
+    const selectedDeparture = tour.departures.find((departure) => departure.date === bookingDate && departure.date >= TODAY_INPUT_DATE) ?? nextDeparture
+    const related = tourPackages.filter((item) => item.id !== tour.id && (item.destinationId === tour.destinationId || item.type === tour.type)).slice(0, 3)
+    const saved = store.wishlist.includes(tour.destinationId)
+    const comparisonSelected = comparedTourIds.includes(tour.id)
+    const compareTour = () => {
+      if (!comparisonSelected && comparedTourIds.length >= 3) {
+        setToast('Bạn có thể so sánh tối đa 3 tour cùng lúc.')
+        return
+      }
+      setComparedTourIds((current) => current.includes(tour.id) ? current.filter((id) => id !== tour.id) : [...current, tour.id])
+    }
+    return (
+      <article className="tour-detail-page section-wrap">
+        <button className="back-link" type="button" onClick={() => navigate('tours')}><ArrowIcon left /> Về danh sách tour</button>
+        <section className="tour-detail-hero"><div className="tour-detail-gallery"><img className="tour-detail-main-image" src={tour.gallery[detailSlide % tour.gallery.length]?.image} alt={tour.gallery[detailSlide % tour.gallery.length]?.alt} /><div className="tour-detail-thumbnails">{tour.gallery.map((photo, index) => <button type="button" key={photo.image} className={index === detailSlide % tour.gallery.length ? 'is-active' : ''} aria-label={`Xem ảnh ${index + 1}`} onClick={() => setDetailSlide(index)}><img src={photo.image} alt="" /></button>)}</div></div><div className="tour-detail-title"><div className="tour-detail-tags"><span>{tour.domestic ? 'TOUR TRONG NƯỚC' : 'TOUR QUỐC TẾ'}</span><span>{tour.type.toUpperCase()}</span>{tour.promotional && <span>ĐANG ƯU ĐÃI</span>}</div><h1>{tour.title}</h1><p>{tour.subtitle}</p><div className="tour-detail-meta"><span>★ {tour.rating.toFixed(1)} <small>({tour.reviewCount} đánh giá)</small></span><span>◷ {tour.durationDays} ngày {tour.durationDays - 1} đêm</span><span>♧ Nhóm tối đa {tour.maxGroupSize}</span></div><a className="tour-destination-link" href={`#/destination/${destination.id}`}>Khám phá điểm đến: {destination.province} <ArrowIcon /></a><div className="tour-detail-utility"><button className={`detail-save${saved ? ' is-saved' : ''}`} type="button" aria-pressed={saved} onClick={() => toggleWishlist(tour.destinationId)}>{saved ? '♥ Đã lưu điểm đến' : '♡ Lưu điểm đến'}</button><button type="button" onClick={compareTour}>{comparisonSelected ? '✓ Đã chọn so sánh' : '＋ Thêm vào so sánh'}</button></div></div></section>
+        <div className="tour-detail-layout"><div className="tour-detail-content">
+          <section className="tour-detail-block"><Eyebrow>ABOUT THE JOURNEY</Eyebrow><h2>Tổng quan hành trình</h2><p>{tour.overview}</p><ul className="tour-highlight-list">{tour.highlights.map((highlight) => <li key={highlight}><span>✳</span>{highlight}</li>)}</ul></section>
+          <section className="tour-detail-block"><Eyebrow>DAY BY DAY</Eyebrow><h2>Lịch trình chi tiết</h2><div className="tour-itinerary">{tour.itinerary.map((day, index) => <details key={day.title} open={index === 0}><summary><span>NGÀY {String(index + 1).padStart(2, '0')}</span><strong>{day.title}</strong><span className="tour-itinerary-toggle">＋</span></summary><div className="tour-itinerary-content"><ul>{day.activities.map((activity) => <li key={activity}>{activity}</li>)}</ul><p><strong>Bữa ăn:</strong> {day.meals.join(' · ')}</p><p><strong>Lưu trú:</strong> {day.accommodation}</p></div></details>)}</div></section>
+          <section className="tour-detail-block tour-logistics-grid"><article><Eyebrow>MEET YOUR GROUP</Eyebrow><h2>Điểm tập trung</h2><p><strong>Khởi hành:</strong> {tour.departureLocation}</p><p><strong>Kết thúc:</strong> {tour.arrivalLocation}</p><p><strong>Quy mô:</strong> tối đa {tour.maxGroupSize} khách</p></article><article><Eyebrow>STAY LOCAL</Eyebrow><h2>Lưu trú</h2><p>{tour.accommodation}</p></article></section>
+          <section className="tour-detail-block tour-services-grid"><article><Eyebrow>WHAT'S INCLUDED</Eyebrow><h2>Giá tour bao gồm</h2><ul>{tour.included.map((item) => <li key={item}>✓ {item}</li>)}</ul></article><article><Eyebrow>NOT INCLUDED</Eyebrow><h2>Chưa bao gồm</h2><ul>{tour.excluded.map((item) => <li key={item}>– {item}</li>)}</ul></article></section>
+          <section className="tour-guide-card"><span className="tour-guide-avatar">{tour.guide.name[0]}</span><div><Eyebrow>YOUR LOCAL EXPERT</Eyebrow><h2>{tour.guide.name}</h2><strong>{tour.guide.role}</strong><p>{tour.guide.description}</p></div></section>
+          <section className="tour-detail-block"><Eyebrow>TRAVELER NOTES</Eyebrow><h2>Đánh giá từ khách đi trước</h2><div className="tour-review-list">{tour.reviews.map((review) => <article key={review.author}><div><strong>{review.author}</strong><span>★ {review.rating.toFixed(1)} · {review.date}</span></div><p>{review.content}</p></article>)}</div></section>
+          <section className="tour-cancellation"><Eyebrow>BOOK WITH CONFIDENCE</Eyebrow><h2>Hủy và hoàn tiền</h2><ul>{tour.cancellationPolicy.map((policy) => <li key={policy}>{policy}</li>)}</ul><small>Chính sách minh họa cho tour demo. Điều khoản thực tế có thể khác theo nhà cung cấp.</small></section>
+        </div><aside className="tour-booking-widget"><div className="tour-booking-price">{tour.discountPercent > 0 && <span>Ưu đãi demo −{tour.discountPercent}%</span>}<p><strong>{formatPrice(tour.price)}</strong><small> / khách</small></p><div>★ {tour.rating.toFixed(1)} · {tour.reviewCount} đánh giá</div></div><label>Ngày khởi hành<select aria-label="Chọn ngày khởi hành" disabled={!nextDeparture} value={selectedDeparture?.date ?? ''} onChange={(event) => setBookingDate(event.target.value)}>{tour.departures.filter((departure) => departure.date >= TODAY_INPUT_DATE).map((departure) => <option value={departure.date} key={departure.date}>{formatDate(departure.date)} · còn {departure.seats} chỗ</option>)}</select></label><label>Số khách<select aria-label="Chọn số khách tour" value={bookingGuestCount} onChange={(event) => setBookingGuestCount(Number(event.target.value))}>{Array.from({ length: Math.min(12, tour.maxGroupSize) }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} khách</option>)}</select></label><div className="tour-seat-note"><span>●</span> {selectedDeparture ? `Còn ${selectedDeparture.seats} chỗ trong nhóm` : 'Vui lòng liên hệ để chọn ngày'}</div><button className="modal-submit" type="button" disabled={!selectedDeparture || selectedDeparture.seats < bookingGuestCount} onClick={() => selectedDeparture && bookTour(tour, selectedDeparture.date, bookingGuestCount)}>{!nextDeparture ? 'Hết lịch khởi hành' : selectedDeparture && selectedDeparture.seats < bookingGuestCount ? 'Không đủ chỗ' : 'Giữ chỗ demo'} <ArrowIcon /></button><small>Chưa thu tiền · Xác nhận và thanh toán demo trên thiết bị.</small></aside></div>
+        <section className="tour-related-section"><div className="section-heading"><div><Eyebrow>MORE JOURNEYS</Eyebrow><h2>Hành trình <em>liên quan.</em></h2></div><a className="section-note section-note--link" href="#/tours">Xem mọi tour <ArrowIcon /></a></div><div className="tour-package-grid">{related.map((item) => <TourCard tour={item} key={item.id} />)}</div></section>
+      </article>
+    )
+  }
+
   function HomePage() {
     const featured = activeMood
       ? store.destinations.filter((destination) => destination.mood.includes(activeMood)).slice(0, 3)
       : store.destinations.slice(0, 3)
+    const popularDestinations = [...store.destinations].sort((a, b) => b.rating - a.rating).slice(0, 4)
+    const featuredTours = store.destinations.filter((destination) => destination.type === 'tour').slice(0, 3)
+    const seasonalTrips = store.destinations.filter((destination) => ['ta-xua', 'cu-lao-cham', 'da-lat'].includes(destination.id)).slice(0, 3)
+    const journalStories = [
+      { destination: store.destinations.find((item) => item.id === 'hoi-an') ?? store.destinations[0], category: 'CULTURE NOTES', title: 'Hội An, khi phố cổ thuộc về những người thức sớm', image: 'https://images.unsplash.com/photo-1518128958364-65859d70aa41?auto=format&fit=crop&w=1000&q=82', read: '6 phút đọc' },
+      { destination: store.destinations.find((item) => item.id === 'ta-xua') ?? store.destinations[0], category: 'FIELD JOURNAL', title: 'Một buổi bình minh không cần phải vội', image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1000&q=82', read: '4 phút đọc' },
+      { destination: store.destinations.find((item) => item.id === 'hue') ?? store.destinations[0], category: 'TASTE & PLACE', title: 'Nếm Huế qua một mâm cơm nhà', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1000&q=82', read: '5 phút đọc' },
+    ].filter((story): story is typeof story & { destination: Destination } => Boolean(story.destination))
     return (
       <>
         <section className="hero" id="trang-chu">
@@ -402,17 +848,59 @@ function App() {
           <a className="scroll-cue" href="#cam-xuc"><span /> Chạm để cảm nhận</a>
         </section>
 
+        <section className="home-search-section section-wrap" aria-label="Tìm chuyến đi">
+          <form className="home-search" onSubmit={searchFromHome}>
+            <label className="home-search-field home-search-destination">
+              <span className="home-search-icon" aria-hidden="true">⌕</span>
+              <span><small>ĐIỂM ĐẾN</small><input aria-label="Bạn muốn đi đâu?" list="home-destinations" placeholder="Bạn muốn đi đâu?" value={homeDestination} onChange={(event) => setHomeDestination(event.target.value)} /><datalist id="home-destinations">{store.destinations.map((destination) => <option key={destination.id} value={destination.province} />)}</datalist></span>
+            </label>
+            <label className="home-search-field">
+              <span className="home-search-icon" aria-hidden="true">↗</span>
+              <span><small>KHỞI HÀNH</small><input aria-label="Ngày khởi hành" type="date" min={TODAY_INPUT_DATE} value={homeDeparture} onChange={(event) => setHomeDeparture(event.target.value)} /></span>
+            </label>
+            <label className="home-search-field">
+              <span className="home-search-icon" aria-hidden="true">↙</span>
+              <span><small>TRỞ VỀ</small><input aria-label="Ngày trở về" type="date" min={homeDeparture || TODAY_INPUT_DATE} value={homeReturn} onChange={(event) => setHomeReturn(event.target.value)} /></span>
+            </label>
+            <label className="home-search-field">
+              <span className="home-search-icon" aria-hidden="true">♧</span>
+              <span><small>DU KHÁCH</small><select aria-label="Số lượng khách" value={bookingGuestCount} onChange={(event) => setBookingGuestCount(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} người</option>)}</select></span>
+            </label>
+            <label className="home-search-field">
+              <span className="home-search-icon" aria-hidden="true">₫</span>
+              <span><small>NGÂN SÁCH / NGƯỜI</small><select aria-label="Ngân sách tối đa" value={maximumPrice} onChange={(event) => setMaximumPrice(event.target.value)}><option value="">Mọi mức giá</option><option value="2000000">Đến 2 triệu</option><option value="2500000">Đến 2,5 triệu</option><option value="3000000">Đến 3 triệu</option><option value="4000000">Đến 4 triệu</option></select></span>
+            </label>
+            <button type="submit" className="home-search-submit" aria-label="Tìm hành trình"><span aria-hidden="true">⌕</span><span className="home-search-submit-label">Tìm chuyến đi</span></button>
+          </form>
+        </section>
+
         <section className="discovery section-wrap" id="cam-xuc">
           <div className="discovery-intro">
-            <Eyebrow>MỖI NGƯỜI, MỘT CÁCH ĐI</Eyebrow>
+            <Eyebrow>TRAVEL BY MOOD</Eyebrow>
             <h2>Hôm nay, bạn<br /><em>muốn cảm thấy</em> gì?</h2>
-            <p className="muted-copy">Chọn một cảm xúc. Mộc sẽ tìm con đường đưa bạn đến gần nó hơn.</p>
+            <p className="muted-copy">Một hành trình đẹp thường bắt đầu từ cảm xúc. Chọn nhịp điệu của riêng bạn.</p>
           </div>
           <div className="mood-list mood-list--home" role="group" aria-label="Chọn cảm xúc cho chuyến đi">
-            {moods.slice(0, 4).map((item) => (
-              <button className={`mood-card${activeMood === item.name ? ' is-selected' : ''}`} key={item.name} type="button" aria-pressed={activeMood === item.name} onClick={() => setActiveMood((current) => current === item.name ? '' : item.name)}>
+            {HOME_MOODS.map((item) => (
+              <button className={`mood-card${activeMood === item.mood ? ' is-selected' : ''}`} key={item.title} type="button" aria-pressed={activeMood === item.mood} onClick={() => { const selectedMood = activeMood === item.mood ? '' : item.mood; setActiveMood(selectedMood); setMood(selectedMood) }}>
                 <span className="mood-icon" aria-hidden="true">{item.icon}</span>
-                <span className="mood-text"><strong>{item.name}</strong><span>{item.note}</span></span><ArrowIcon />
+                <span className="mood-text"><strong>{item.title}</strong><span>{item.note}</span></span><ArrowIcon />
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="popular-section section-wrap">
+          <div className="section-heading">
+            <div><Eyebrow>PLACES WORTH THE JOURNEY</Eyebrow><h2>Những nơi <em>đáng nhớ.</em></h2></div>
+            <a className="section-note section-note--link" href="#/explore">Khám phá mọi điểm đến <ArrowIcon /></a>
+          </div>
+          <div className="popular-grid">
+            {popularDestinations.map((destination, index) => (
+              <button className={`popular-card popular-card--${index + 1}`} type="button" key={destination.id} onClick={() => navigate('destination', destination.id)}>
+                <img src={destination.image} alt={destination.imageAlt} loading="lazy" />
+                <span className="popular-card-shade" />
+                <span className="popular-card-copy"><small>{destination.region} · {destination.rating.toFixed(1)} ★</small><strong>{destination.province.split(',')[0]}</strong><span>{destination.name} <ArrowIcon /></span></span>
               </button>
             ))}
           </div>
@@ -439,6 +927,53 @@ function App() {
           </div>
         </section>
 
+        <section className="tour-section section-wrap">
+          <div className="section-heading">
+            <div><Eyebrow>THOÁT KHỎI LỊCH TRÌNH QUEN</Eyebrow><h2>Tour được <em>chọn riêng.</em></h2></div>
+            <a className="section-note section-note--link" href="#/explore">Xem mọi hành trình <ArrowIcon /></a>
+          </div>
+          <div className="tour-grid">
+            {featuredTours.map((destination, index) => {
+              const discount = [15, 10, 12][index % 3]
+              return (
+                <article className="tour-card" key={destination.id}>
+                  <button className="tour-image-button" type="button" onClick={() => navigate('destination', destination.id)} aria-label={`Xem ${destination.name}`}>
+                    <img src={destination.image} alt={destination.imageAlt} loading="lazy" />
+                    <span className="discount-badge">ƯU ĐÃI DEMO −{discount}%</span>
+                    <span className="tour-rating">★ {destination.rating.toFixed(1)}</span>
+                  </button>
+                  <div className="tour-card-copy">
+                    <span className="tour-location">{destination.province} <span>·</span> {destination.type === 'tour' ? 'Local tour' : 'Stay'}</span>
+                    <h3><a href={`#/destination/${destination.id}`}>{destination.name}</a></h3>
+                    <div className="tour-meta"><span>◷ {destination.duration}</span><span>✦ {destination.rating.toFixed(1)} rating</span></div>
+                    <div className="tour-price-line"><span><del>{formatPrice(Math.round(destination.price * (1 + discount / 100)))}</del><strong>{formatPrice(destination.price)}</strong><small> / người</small></span><button type="button" onClick={() => openBooking(destination)}>Đặt chuyến <ArrowIcon /></button></div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <p className="demo-caption">Giá và ưu đãi hiển thị chỉ nhằm minh họa giao diện demo.</p>
+        </section>
+
+        <section className="seasonal-section">
+          <div className="section-wrap">
+            <div className="section-heading">
+              <div><Eyebrow>SEASONAL ESCAPES</Eyebrow><h2>Mùa này, mình <em>đi đâu?</em></h2></div>
+              <span className="section-note">Những gợi ý nhỏ cho một mùa thật đáng nhớ.</span>
+            </div>
+            <div className="seasonal-grid">
+              {seasonalTrips.map((destination, index) => (
+                <article className="seasonal-card" key={destination.id}>
+                  <img src={destination.image} alt={destination.imageAlt} loading="lazy" />
+                  <div className="seasonal-shade" />
+                  <div className="seasonal-copy"><span>{['MÙA SĂN MÂY', 'MÙA BIỂN XANH', 'MÙA ĐI TRỐN'][index]}</span><h3>{destination.province.split(',')[0]}</h3><p>{destination.season} · {destination.duration}</p><button type="button" onClick={() => navigate('destination', destination.id)}>Xem ưu đãi <ArrowIcon /></button></div>
+                </article>
+              ))}
+            </div>
+            <p className="demo-caption">Ưu đãi mùa vụ là nội dung minh họa, không áp dụng giao dịch thật.</p>
+          </div>
+        </section>
+
         <section className="manifesto section-wrap" id="ve-moc">
           <div className="manifesto-image"><img src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=1200&q=82" alt="Hai chú hươu thong thả giữa khu rừng xanh" loading="lazy" /><span className="image-note">ĐỂ THIÊN NHIÊN KỂ CHUYỆN</span></div>
           <div className="manifesto-copy">
@@ -449,7 +984,34 @@ function App() {
             <div className="manifesto-signature">đi chậm thôi, mình còn cả một đời.</div>
           </div>
         </section>
-        <section className="quote-band"><div className="quote-mark" aria-hidden="true">“</div><blockquote>Mình tưởng là đi trốn khỏi thành phố. Hóa ra là đang đi tìm lại một phiên bản rất lâu rồi chưa gặp.</blockquote><div className="quote-author"><span /> MINH ANH <span className="quote-author-dot">·</span> HÀNH TRÌNH TÀ XÙA</div><div className="quote-decoration" aria-hidden="true">mộc</div></section>
+        <section className="reviews-section section-wrap">
+          <div className="section-heading"><div><Eyebrow>NOTES FROM THE ROAD</Eyebrow><h2>Những câu chuyện <em>mang về.</em></h2></div><div className="review-score"><strong>4.9</strong><span>★★★★★<small>Đánh giá demo từ cộng đồng Mộc</small></span></div></div>
+          <div className="review-grid">
+            {[
+              { quote: 'Mình tưởng là đi trốn khỏi thành phố. Hóa ra là đang đi tìm lại một phiên bản rất lâu rồi chưa gặp.', name: 'Minh Anh', trip: 'Hành trình Tà Xùa', initials: 'MA' },
+              { quote: 'Điều mình nhớ nhất không phải cảnh đẹp, mà là bữa cơm và câu chuyện của người chị chủ nhà.', name: 'Thu Hà', trip: 'Một ngày ở Hội An', initials: 'TH' },
+              { quote: 'Mọi thứ vừa đủ chậm để mình thật sự nhìn thấy hòn đảo, và những người đang sống ở đó.', name: 'Quốc Bảo', trip: 'Cù Lao Chàm xanh', initials: 'QB' },
+            ].map((review) => <article className="review-card" key={review.name}><div className="review-stars" aria-label="5 trên 5 sao">★★★★★</div><blockquote>“{review.quote}”</blockquote><div className="review-person"><span>{review.initials}</span><div><strong>{review.name}</strong><small>{review.trip} · Review demo</small></div></div></article>)}
+          </div>
+        </section>
+
+        <section className="journal-section">
+          <div className="section-wrap">
+            <div className="section-heading"><div><Eyebrow>THE MỘC JOURNAL</Eyebrow><h2>Đọc một chút,<br /><em>mơ thêm nhiều.</em></h2></div><a className="section-note section-note--link" href="#/journal">Xem mọi câu chuyện <ArrowIcon /></a></div>
+            <div className="journal-grid">
+              {journalStories.map((story) => {
+                const article = JOURNAL_STORIES.find((item) => item.destinationId === story.destination?.id)
+                if (!article) return null
+                return <article className="journal-card" key={story.destination.id}><button type="button" className="journal-image" onClick={() => navigate('blog', article.id)} aria-label={`Đọc: ${story.title}`}><img src={story.image} alt="" loading="lazy" /></button><div className="journal-copy"><span>{story.category} · {story.read}</span><h3><a href={`#/blog/${article.id}`}>{story.title}</a></h3><button type="button" onClick={() => navigate('blog', article.id)}>Đọc câu chuyện <ArrowIcon /></button></div></article>
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="newsletter-section">
+          <div className="newsletter-inner section-wrap"><div><Eyebrow light>A LETTER FROM MỘC</Eyebrow><h2>Một lá thư nhỏ,<br /><em>một miền đất mới.</em></h2><p>Nhận cảm hứng du lịch, câu chuyện địa phương và những gợi ý chỉ gửi thật thưa.</p></div><form className="newsletter-form" onSubmit={subscribeToNewsletter}><label htmlFor="newsletter-email">Địa chỉ email</label><div><input id="newsletter-email" type="email" autoComplete="email" placeholder="you@example.com" value={newsletterEmail} onChange={(event) => { setNewsletterEmail(event.target.value); setNewsletterMessage('') }} required /><button type="submit">Đăng ký <ArrowIcon /></button></div><small role="status">{newsletterMessage || 'Bản tin demo · Không gửi email thật và bạn có thể dừng bất cứ lúc nào.'}</small></form></div>
+        </section>
+
         <section className="closing-cta"><img src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=2000&q=82" alt="" loading="lazy" /><div className="closing-overlay" /><div className="closing-content"><Eyebrow light>MỘT CẢM XÚC ĐANG GỌI TÊN</Eyebrow><h2>Hành trình tiếp theo<br />của bạn, bắt đầu từ đây.</h2><a href="#/planner">Đi tìm cảm xúc ấy <ArrowIcon /></a></div></section>
       </>
     )
@@ -469,6 +1031,7 @@ function App() {
     return (
       <section className="page-section section-wrap">
         {PageIntro({ eyebrow: 'TÌM THEO CẢM XÚC, ĐI THEO CÁCH RIÊNG', title: <>Một chuyến đi<br /><em>đúng tâm trạng.</em></>, description: 'Mộc gom những tour địa phương và nơi ở thân tình thành các gợi ý có thật. Lọc cho đến khi tìm thấy điều chạm tới bạn.' })}
+        {travelDates && <p className="search-trip-note" role="status">Đang tìm cho {bookingGuestCount} {bookingGuestCount === 1 ? 'du khách' : 'du khách'}{travelDates.departure ? ` · khởi hành ${formatDate(travelDates.departure)}` : ''}{travelDates.returnDate ? ` · trở về ${formatDate(travelDates.returnDate)}` : ''}. Ngày đi và số khách sẽ được giữ sẵn khi bạn mở đặt chỗ demo.</p>}
         {SearchAndFilters({})}
         {ResultsGrid({})}
       </section>
@@ -489,7 +1052,14 @@ function App() {
   function DetailPage() {
     const destination = store.destinations.find((item) => item.id === route.id)
     if (!destination) return NotFound({ onBack: () => navigate('explore') })
-    const gallery = [destination, ...store.destinations.filter((item) => item.id !== destination.id).slice(0, 2)]
+    const guide = getDestinationGuide(destination)
+    const country = getDestinationCountry(destination)
+    const category = getDestinationCategory(destination)
+    const relatedTours = tourPackages.filter((tour) => tour.destinationId === destination.id)
+    const relatedDestinations = store.destinations
+      .filter((item) => item.id !== destination.id && getDestinationCategory(item) === category)
+      .slice(0, 3)
+    const gallery = guide.gallery
     const activeSlide = detailSlide % gallery.length
     const shownSlide = gallery[activeSlide]
     function moveSlide(direction: -1 | 1) {
@@ -502,7 +1072,7 @@ function App() {
           if (event.key === 'ArrowLeft') moveSlide(-1)
           if (event.key === 'ArrowRight') moveSlide(1)
         }}>
-          <img src={shownSlide.image} alt={shownSlide.imageAlt} />
+          <img src={shownSlide.image} alt={shownSlide.alt} />
           <span>{destination.label}</span>
           <div className="gallery-controls">
             <button type="button" aria-label="Ảnh trước" onClick={() => moveSlide(-1)}><ArrowIcon left /></button>
@@ -510,21 +1080,36 @@ function App() {
             <button type="button" aria-label="Ảnh tiếp theo" onClick={() => moveSlide(1)}><ArrowIcon /></button>
           </div>
           <div className="gallery-dots" role="group" aria-label="Chọn ảnh">
-            {gallery.map((image, index) => <button key={image.id} type="button" aria-label={`Xem ảnh ${index + 1}`} aria-pressed={index === activeSlide} onClick={() => setDetailSlide(index)} />)}
+            {gallery.map((_, index) => <button key={`${destination.id}-gallery-${index}`} type="button" aria-label={`Xem ảnh ${index + 1}`} aria-pressed={index === activeSlide} onClick={() => setDetailSlide(index)} />)}
           </div>
         </div>
         <div className="detail-columns">
           <div className="detail-story">
-            <Eyebrow>{destination.region.toUpperCase()} · {destination.province.toUpperCase()}</Eyebrow>
+            <Eyebrow>{country.toUpperCase()} · {category.toUpperCase()} · {destination.province.toUpperCase()}</Eyebrow>
             <h1>{destination.name}</h1>
             <p className="detail-description">{destination.description}</p>
+            <section className="destination-detail-section">
+              <Eyebrow>THE PLACE</Eyebrow><h2>Tổng quan điểm đến</h2><p>{guide.overview}</p>
+            </section>
             <h2>Điều mình sẽ nhớ</h2>
             <ul className="highlight-list">{destination.highlights.map((highlight) => <li key={highlight}><span aria-hidden="true">✳</span>{highlight}</li>)}</ul>
+            <section className="destination-guide-grid">
+              <article className="destination-guide-card"><span aria-hidden="true">⌖</span><div><Eyebrow>DON'T MISS</Eyebrow><h2>Điểm tham quan</h2><ul>{guide.attractions.map((attraction) => <li key={attraction}>{attraction}</li>)}</ul></div></article>
+              <article className="destination-guide-card"><span aria-hidden="true">☼</span><div><Eyebrow>WHEN TO GO</Eyebrow><h2>Thời điểm đẹp nhất</h2><p>{guide.bestTime}</p></div></article>
+              <article className="destination-guide-card"><span aria-hidden="true">₫</span><div><Eyebrow>PLAN YOUR BUDGET</Eyebrow><h2>Ngân sách ước tính</h2><p>{guide.estimatedBudget}</p><small>Chi phí tham khảo, có thể thay đổi theo mùa.</small></div></article>
+              <article className="destination-guide-card"><span aria-hidden="true">◌</span><div><Eyebrow>LOCAL FLAVORS</Eyebrow><h2>Món ngon địa phương</h2><ul>{guide.cuisine.map((dish) => <li key={dish}>{dish}</li>)}</ul></div></article>
+            </section>
+            <section className="destination-transport"><Eyebrow>GETTING THERE</Eyebrow><h2>Di chuyển đến đây</h2><p>{guide.transportation}</p></section>
             <section className="host-story"><div className="host-avatar" aria-hidden="true">{destination.host[0]}</div><div><Eyebrow>LOCAL HOST CỦA MỘC</Eyebrow><h2>{destination.host}</h2><p>{destination.hostStory}</p></div></section>
-            <div className="detail-reviews"><Eyebrow>LỜI NHẮN TỪ NGƯỜI ĐI TRƯỚC</Eyebrow><p>“{destination.name} cho mình một khoảng lặng đúng lúc. Cảm ơn người địa phương đã kể câu chuyện này bằng sự chân thành.”</p><span>— Một người bạn của Mộc · Đánh giá demo</span></div>
+            <section className="destination-map-section"><div className="destination-map-heading"><div><Eyebrow>FIND YOUR WAY</Eyebrow><h2>Điểm đến trên bản đồ</h2><p>{destination.province} · {country}</p></div><a href={`https://www.google.com/maps/search/?api=1&query=${guide.latitude},${guide.longitude}`} target="_blank" rel="noreferrer">Mở bản đồ <ArrowIcon /></a></div><iframe title={`Bản đồ ${destination.province}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={`https://maps.google.com/maps?q=${guide.latitude},${guide.longitude}&z=10&output=embed`} /></section>
+            <section className="destination-reviews">
+              <div className="destination-reviews-heading"><div><Eyebrow>NOTES FROM TRAVELERS</Eyebrow><h2>Lời kể sau chuyến đi</h2></div><span className="destination-review-summary"><strong>★ {destination.rating.toFixed(1)}</strong><small>Đánh giá demo</small></span></div>
+              <div className="destination-review-list">{guide.reviews.map((review) => <article className="destination-review" key={review.author}><div className="destination-review-top"><span className="review-avatar">{review.author.split(' ').map((part) => part[0]).join('')}</span><div><strong>{review.author}</strong><small>{review.location} · {review.date}</small></div><span className="review-rating">★ {review.rating.toFixed(1)}</span></div><p>{review.content}</p></article>)}{reviewSubmitted && <article className="destination-review destination-review--new"><div className="destination-review-top"><span className="review-avatar">B</span><div><strong>Bạn</strong><small>Vừa chia sẻ · Review demo</small></div><span className="review-rating">★ {reviewRating.toFixed(1)}</span></div><p>{reviewText}</p></article>}</div>
+              {!reviewSubmitted ? <form className="destination-review-form" onSubmit={(event) => { event.preventDefault(); setReviewSubmitted(true); setToast('Cảm ơn bạn đã chia sẻ đánh giá demo.') }}><label><span>Đánh giá của bạn</span><span className="review-star-picker">{Array.from({ length: 5 }, (_, index) => <button key={index} type="button" aria-label={`${index + 1} sao`} aria-pressed={reviewRating === index + 1} onClick={() => setReviewRating(index + 1)}>{index < reviewRating ? '★' : '☆'}</button>)}</span></label><label><span>Chia sẻ cảm nhận</span><textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} minLength={8} maxLength={500} required placeholder="Điều gì khiến chuyến đi này đáng nhớ?" /></label><button className="secondary-button" type="submit">Gửi đánh giá demo <ArrowIcon /></button><small>Đánh giá chỉ hiển thị trong phiên demo này.</small></form> : <p className="review-submitted-note" role="status">Cảm ơn bạn, đánh giá demo đã được thêm vào trang này.</p>}
+            </section>
           </div>
           <aside className="detail-booking">
-            <div className="detail-rating">✦ {destination.rating.toFixed(1)} <span>· Đánh giá minh họa</span></div>
+            <div className="detail-rating">✦ {destination.rating.toFixed(1)} <span>· {guide.reviews.length} đánh giá demo</span></div>
             <h2>{formatPrice(destination.price)} <span>/ người</span></h2>
             <p>{destination.duration} · {destination.season}</p>
             <div className="detail-moods">{destination.mood.map((item) => <span key={item}>{item}</span>)}</div>
@@ -533,6 +1118,11 @@ function App() {
             <button className="detail-save" type="button" aria-pressed={store.wishlist.includes(destination.id)} onClick={() => toggleWishlist(destination.id)}>{store.wishlist.includes(destination.id) ? '♥ Đã lưu vào danh sách' : '♡ Lưu vào danh sách yêu thích'}</button>
           </aside>
         </div>
+        <section className="related-destinations">
+          <div className="section-heading"><div><Eyebrow>KEEP EXPLORING</Eyebrow><h2>Đi tiếp từ <em>{destination.province.split(',')[0]}.</em></h2></div><a className="section-note section-note--link" href="#/tours">Tất cả tour <ArrowIcon /></a></div>
+          {relatedTours.length > 0 && <div className="related-tour-list"><h3>Tour & trải nghiệm liên quan</h3><div className="related-tour-grid">{relatedTours.map((tour) => <TourCard tour={tour} key={tour.id} />)}</div></div>}
+          {relatedDestinations.length > 0 && <div className="related-place-list"><h3>Có thể bạn cũng thích</h3><div>{relatedDestinations.map((place) => <button type="button" key={place.id} onClick={() => navigate('destination', place.id)}><img src={place.image} alt="" loading="lazy" /><span>{place.province}<small>{getDestinationCategory(place)}</small></span><ArrowIcon /></button>)}</div></div>}
+        </section>
       </section>
     )
   }
@@ -720,14 +1310,41 @@ function App() {
   }
 
   function Footer() {
-    return <footer className="site-footer"><div className="footer-main"><Brand /><p>Đi chậm. Cảm sâu. Nhớ lâu.</p><nav aria-label="Liên kết cuối trang"><a href="#/explore">Khám phá</a><a href="#/collections">Bộ sưu tập</a><a href="#/planner">Lên lịch trình</a><a href="#/bookings">Lời hẹn demo</a></nav></div><div className="footer-bottom"><span>© 2025 Mộc Journeys · Chạm cảm xúc, chạm hành trình.</span><span>Frontend demo · Không xử lý thanh toán hoặc đặt chỗ thật.</span></div></footer>
+    return (
+      <footer className="site-footer">
+        <div className="footer-grid">
+          <div className="footer-brand-column"><Brand /><p>Đi chậm. Cảm sâu. Nhớ lâu.<br />Những chuyến đi được kể bằng cảm xúc và câu chuyện địa phương.</p><div className="footer-socials"><a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram ↗</a><a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook ↗</a></div></div>
+          <div className="footer-link-column"><strong>TOUR DU LỊCH</strong><a href="#/tours">Tất cả tour</a><a href="#/domestic-tours">Tour trong nước</a><a href="#/international-tours">Tour quốc tế</a><a href="#/themed-tours">Tour theo chủ đề</a><a href="#/promotional-tours">Tour ưu đãi</a></div>
+          <div className="footer-link-column"><strong>HỖ TRỢ</strong><a href="mailto:hello@moc.demo">hello@moc.demo</a><a href="tel:+842800000000">+84 28 0000 0000</a><a href="#/privacy">Chính sách riêng tư</a><a href="#/terms">Điều khoản sử dụng</a></div>
+          <div className="footer-contact-note"><span>ĐI CÙNG MỘC</span><p>Một hành trình tốt bắt đầu bằng một lời chào. Hãy để lại lời nhắn cho chúng mình.</p><a href="mailto:hello@moc.demo">Gửi lời chào <ArrowIcon /></a></div>
+        </div>
+        <div className="footer-bottom"><span>© 2026 Mộc Journeys · Chạm cảm xúc, chạm hành trình.</span><span>Thông tin liên hệ và đặt chỗ chỉ mang tính demo · Không xử lý thanh toán.</span></div>
+      </footer>
+    )
+  }
+
+  function LegalPage() {
+    const isPrivacy = route.page === 'privacy'
+    return <section className="page-section section-wrap legal-page">{PageIntro({ eyebrow: 'THÔNG TIN DEMO', title: isPrivacy ? <>Chính sách<br /><em>riêng tư.</em></> : <>Điều khoản<br /><em>sử dụng.</em></>, description: 'Mộc là website frontend minh họa. Nội dung dưới đây giải thích phạm vi dữ liệu của bản demo.' })}<article className="legal-copy"><h2>{isPrivacy ? 'Dữ liệu trên thiết bị của bạn' : 'Phạm vi sử dụng'}</h2><p>{isPrivacy ? 'Thông tin hồ sơ demo, hành trình đã lưu và yêu cầu đặt chỗ được lưu trong localStorage trên thiết bị này. Mộc không gửi dữ liệu tới máy chủ, không thu thập thông tin thanh toán và không gửi email bản tin.' : 'Các hành trình, giá, ưu đãi, đánh giá và chức năng đặt chỗ trên website chỉ nhằm trình diễn giao diện. Không có giao dịch hoặc dịch vụ du lịch thật được tạo ra.'}</p><h2>{isPrivacy ? 'Bạn có thể chủ động quản lý' : 'Thông tin liên hệ'}</h2><p>{isPrivacy ? 'Bạn có thể xóa dữ liệu demo bằng cách xóa dữ liệu trang web trong trình duyệt. Mọi thay đổi chỉ áp dụng cho thiết bị đang sử dụng.' : 'Địa chỉ email, số điện thoại và các liên kết mạng xã hội trên website là thông tin minh họa cho giao diện.'}</p><a className="text-button" href="#/home">Trở về trang chủ <ArrowIcon left /></a></article></section>
+  }
+
+  function JournalPage() {
+    const stories = JOURNAL_STORIES.filter((story) => store.destinations.some((destination) => destination.id === story.destinationId))
+    return <section className="page-section section-wrap journal-page">{PageIntro({ eyebrow: 'THE MỘC JOURNAL', title: <>Ghi chép<br /><em>trên đường.</em></>, description: 'Những lát cắt nhỏ về nơi chốn, món ăn và người mình gặp trên mỗi hành trình.' })}<div className="journal-grid">{stories.map((story) => <article className="journal-card" key={story.id}><button type="button" className="journal-image" onClick={() => navigate('blog', story.id)} aria-label={`Đọc: ${story.title}`}><img src={story.image} alt="" loading="lazy" /></button><div className="journal-copy"><span>{story.category} · {story.read}</span><h3><a href={`#/blog/${story.id}`}>{story.title}</a></h3><button type="button" onClick={() => navigate('blog', story.id)}>Đọc câu chuyện <ArrowIcon /></button></div></article>)}</div></section>
+  }
+
+  function JournalArticlePage() {
+    const story = JOURNAL_STORIES.find((item) => item.id === route.id)
+    if (!story) return NotFound({ onBack: () => navigate('journal') })
+    const destination = store.destinations.find((item) => item.id === story.destinationId)
+    return <article className="journal-article section-wrap"><button className="back-link" type="button" onClick={() => navigate('journal')}><ArrowIcon left /> Về tạp chí Mộc</button><img className="journal-article-image" src={story.image} alt="" /><div className="journal-article-copy"><Eyebrow>{story.category} · {story.read}</Eyebrow><h1>{story.title}</h1>{story.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{destination && <aside className="journal-related"><span>ĐI TIẾP TỪ CÂU CHUYỆN</span><strong>{destination.name} · {destination.province}</strong><button className="text-button" type="button" onClick={() => navigate('destination', destination.id)}>Khám phá hành trình <ArrowIcon /></button></aside>}</div></article>
   }
 
   function BookingDialog() {
     if (!bookingDestination) return null
     const subtotal = bookingDestination.price * bookingGuestCount
     const fee = Math.round(subtotal * 0.05)
-    return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setBookingDestination(null) }}><section className="dialog booking-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button className="modal-close" type="button" aria-label="Đóng" onClick={() => setBookingDestination(null)}>×</button><Eyebrow>ĐẶT CHỖ DEMO · CHƯA THANH TOÁN</Eyebrow><h2 id="dialog-title">{bookingDestination.name}</h2><p className="modal-subtitle">{bookingDestination.province} · {bookingDestination.duration}</p><form className="booking-form" onSubmit={createBooking}><label><span>Tên người liên hệ</span><input name="name" autoComplete="name" minLength={2} maxLength={70} defaultValue={store.user?.name ?? ''} required /></label><label><span>Email</span><input name="email" type="email" autoComplete="email" defaultValue={store.user?.email ?? ''} required /></label><div className="booking-form-row"><label><span>Ngày đi</span><input name="date" type="date" min={minimumBookingDate} required /></label><label><span>Số người</span><select name="guests" value={bookingGuestCount} onChange={(event) => setBookingGuestCount(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} người</option>)}</select></label></div><div className="price-breakdown"><div><span>{formatPrice(bookingDestination.price)} × {bookingGuestCount} người</span><strong>{formatPrice(subtotal)}</strong></div><div><span>Phí dịch vụ demo (5%)</span><strong>{formatPrice(fee)}</strong></div><div className="price-total"><span>Tổng ước tính</span><strong>{formatPrice(subtotal + fee)}</strong></div></div><button className="modal-submit" type="submit">Gửi lời hẹn demo <ArrowIcon /></button><p className="form-note">Không thu thập thông tin thanh toán. Yêu cầu chỉ được lưu trên thiết bị này.</p></form></section></div>
+    return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setBookingDestination(null) }}><section className="dialog booking-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><button className="modal-close" type="button" aria-label="Đóng" onClick={() => setBookingDestination(null)}>×</button><Eyebrow>ĐẶT CHỖ DEMO · CHƯA THANH TOÁN</Eyebrow><h2 id="dialog-title">{bookingDestination.name}</h2><p className="modal-subtitle">{bookingDestination.province} · {bookingDestination.duration}</p><form className="booking-form" onSubmit={createBooking}><label><span>Tên người liên hệ</span><input name="name" autoComplete="name" minLength={2} maxLength={70} defaultValue={store.user?.name ?? ''} required /></label><label><span>Email</span><input name="email" type="email" autoComplete="email" defaultValue={store.user?.email ?? ''} required /></label><div className="booking-form-row">    <label><span>Ngày đi</span><input name="date" type="date" min={minimumBookingDate} value={bookingDate} onChange={(event) => setBookingDate(event.target.value)} required /></label><label><span>Số người</span><select name="guests" value={bookingGuestCount} onChange={(event) => setBookingGuestCount(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} người</option>)}</select></label></div><div className="price-breakdown"><div><span>{formatPrice(bookingDestination.price)} × {bookingGuestCount} người</span><strong>{formatPrice(subtotal)}</strong></div><div><span>Phí dịch vụ demo (5%)</span><strong>{formatPrice(fee)}</strong></div><div className="price-total"><span>Tổng ước tính</span><strong>{formatPrice(subtotal + fee)}</strong></div></div><button className="modal-submit" type="submit">Gửi lời hẹn demo <ArrowIcon /></button><p className="form-note">Không thu thập thông tin thanh toán. Yêu cầu chỉ được lưu trên thiết bị này.</p></form></section></div>
   }
 
   function CancelDialog() {
@@ -758,8 +1375,13 @@ function App() {
       {Header()}
       <main id="main-content">
         {visibleRoute === 'home' && HomePage()}
+        {['destinations', 'domestic', 'international', 'categories'].includes(visibleRoute) && DestinationsPage()}
+        {['tours', 'domestic-tours', 'international-tours', 'themed-tours', 'promotional-tours'].includes(visibleRoute) && ToursPage()}
+        {visibleRoute === 'tour' && TourDetailPage()}
         {visibleRoute === 'explore' && ExplorePage()}
         {visibleRoute === 'collections' && CollectionsPage()}
+        {visibleRoute === 'journal' && JournalPage()}
+        {visibleRoute === 'blog' && JournalArticlePage()}
         {visibleRoute === 'destination' && DetailPage()}
         {visibleRoute === 'planner' && PlannerPage()}
         {visibleRoute === 'wishlist' && WishlistPage()}
@@ -771,8 +1393,9 @@ function App() {
         {visibleRoute === 'confirmation' && ConfirmationPage()}
         {visibleRoute === 'provider' && ProviderPage()}
         {visibleRoute === 'admin' && AdminPage()}
+        {(visibleRoute === 'privacy' || visibleRoute === 'terms') && LegalPage()}
         {visibleRoute === 'access' && AccessDenied()}
-        {!['home', 'explore', 'collections', 'destination', 'planner', 'wishlist', 'bookings', 'notifications', 'dashboard', 'profile', 'login', 'confirmation', 'provider', 'admin', 'access'].includes(visibleRoute) && NotFound({ onBack: () => navigate('home') })}
+        {!['home', 'destinations', 'domestic', 'international', 'categories', 'tours', 'domestic-tours', 'international-tours', 'themed-tours', 'promotional-tours', 'tour', 'explore', 'collections', 'journal', 'blog', 'destination', 'planner', 'wishlist', 'bookings', 'notifications', 'dashboard', 'profile', 'login', 'confirmation', 'provider', 'admin', 'privacy', 'terms', 'access'].includes(visibleRoute) && NotFound({ onBack: () => navigate('home') })}
       </main>
       {Footer()}
       {bookingDestination && BookingDialog()}

@@ -1,0 +1,25 @@
+{
+  "destinations": [
+    {
+      "id": "ta-xua",
+      "name": "Chạm vào mây",
+      "province": "Tà Xùa, Sơn La",
+      "price": 2490000,
+      "duration": "3 ngày 2 đêm"
+    },
+    {
+      "id": "hoi-an",
+      "name": "Theo nắng về nhà",
+      "province": "Hội An, Quảng Nam",
+      "price": 2150000,
+      "duration": "3 ngày 2 đêm"
+    },
+    {
+      "id": "da-lat",
+      "name": "Sáng nay có sương",
+      "province": "Đà Lạt, Lâm Đồng",
+      "price": 2350000,
+      "duration": "2 ngày 1 đêm"
+    }
+  ]
+}
